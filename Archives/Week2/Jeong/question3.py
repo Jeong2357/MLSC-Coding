@@ -1,159 +1,173 @@
-import argparse
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+import numpy as np
 
-# -------------------------
-# Model: Evans Example 1
-# x' = k * a * x,   a in [0,1]
-# payoff J = ∫_0^T (1-a(t)) x(t) dt
-# -------------------------
+# --- 1. Problem Configuration ---
+T = 10.0           # Terminal time
+k = 0.5            # Growth rate of reinvestment
+x0 = 1.0           # Initial output
+dt = 0.01          # Time step size
+steps = int(T / dt)
 
-class PolicyNet(nn.Module):
-    def __init__(self, hidden=128):
+# --- 2. Neural Network Policy ---
+class ControlPolicy(nn.Module):
+    def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, hidden),
+            nn.Linear(2, 64),
             nn.Tanh(),
-            nn.Linear(hidden, hidden),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(hidden, 1),
+            nn.Linear(64, 1),
+            nn.Sigmoid() 
         )
 
-    def forward(self, t_norm, x_norm):
-        # inputs: (N,), (N,)
-        inp = torch.stack([t_norm, x_norm], dim=-1)  # (N,2)
-        a = torch.sigmoid(self.net(inp)).squeeze(-1)  # (N,), in (0,1)
-        return a
+    def forward(self, t, x):
+        t_norm = t / T 
+        state_input = torch.cat([t_norm, x], dim=1)
+        return self.net(state_input)
 
+# --- 3. Training Loop (Differentiable Physics) ---
+def train_optimal_control():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    policy = ControlPolicy().to(device)
+    optimizer = optim.Adam(policy.parameters(), lr=0.005)
+    
+    epochs = 2000
+    
+    print(f"{'Epoch':^10} | {'Loss (Negative Payoff)':^25}")
+    print("-" * 40)
 
-def rk4_step(x, a, dt, k):
-    # x: scalar tensor, a: scalar tensor
-    def f(x_, a_):
-        return k * a_ * x_
-
-    k1 = f(x, a)
-    k2 = f(x + 0.5 * dt * k1, a)
-    k3 = f(x + 0.5 * dt * k2, a)
-    k4 = f(x + dt * k3, a)
-    return x + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-
-
-def rollout(policy, x0, T, dt, k, device):
-    n_steps = int(T / dt)
-    ts = torch.linspace(0.0, T, n_steps + 1, device=device)
-
-    # store for plotting
-    xs = torch.zeros(n_steps + 1, device=device)
-    as_ = torch.zeros(n_steps + 1, device=device)
-
-    x = torch.tensor(float(x0), device=device)
-    xs[0] = x
-
-    # normalized features
-    # time in [0,1], x feature log-scale for stability
-    x0_t = torch.tensor(float(x0), device=device)
-    eps = 1e-8
-
-    payoff = torch.tensor(0.0, device=device)
-
-    for i in range(n_steps):
-        t = ts[i]
-        t_norm = t / T
-        x_norm = torch.log((x + eps) / (x0_t + eps))  # scalar
-
-        a = policy(t_norm.unsqueeze(0), x_norm.unsqueeze(0)).squeeze(0)  # scalar in (0,1)
-        as_[i] = a
-
-        # running profit (consumption): (1-a)*x
-        r = (1.0 - a) * x
-        payoff = payoff + r * dt
-
-        x = rk4_step(x, a, dt, k)
-        xs[i+1] = x
-
-    # last action for completeness
-    as_[-1] = as_[-2]
-    return ts, xs, as_, payoff
-
-
-def train(args):
-    device = "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-
-    policy = PolicyNet(hidden=args.hidden).to(device)
-    opt = optim.Adam(policy.parameters(), lr=args.lr)
-
-    best_payoff = -1e18
-    best_state = None
-
-    for it in range(args.iters):
-        ts, xs, as_, payoff = rollout(policy, args.x0, args.T, args.dt, args.k, device)
-
-        loss = -payoff  # maximize payoff
-
-        opt.zero_grad()
+    for epoch in range(epochs):
+        current_x = torch.tensor([[x0]], device=device, dtype=torch.float32)
+        total_payoff = 0.0
+        
+        # Simulation loop (Euler Integration)
+        for step in range(steps):
+            t_val = step * dt
+            t_tensor = torch.tensor([[t_val]], device=device, dtype=torch.float32)
+            
+            alpha = policy(t_tensor, current_x)
+            
+            # Payoff: consume (1-alpha) * x
+            instant_reward = (1.0 - alpha) * current_x
+            total_payoff += instant_reward * dt
+            
+            # Dynamics: dx = k * alpha * x * dt
+            dx = k * alpha * current_x * dt
+            current_x = current_x + dx
+        
+        loss = -total_payoff
+        
+        optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(policy.parameters(), 10.0)
-        opt.step()
+        optimizer.step()
+        
+        if epoch % 500 == 0:
+            print(f"{epoch:^10} | {loss.item():^25.4f}")
 
-        p = float(payoff.detach().cpu().item())
-        if p > best_payoff:
-            best_payoff = p
-            best_state = {k: v.detach().cpu().clone() for k, v in policy.state_dict().items()}
+    print(f"{epochs:^10} | {loss.item():^25.4f}")
+    return policy
 
-        if it % args.print_every == 0:
-            print(f"iter {it:5d} | payoff={p:12.6f}")
+# --- 4. Analytical Solution Calculation ---
+def get_analytical_solution(times):
+    # Theoretical switching time t* = T - 1/k
+    # If T < 1/k, t* = 0 (always consume)
+    t_star = max(0, T - 1.0/k)
+    
+    analytical_alphas = []
+    analytical_xs = []
+    analytical_payoff = 0.0
+    
+    curr_x = x0
+    
+    for t in times:
+        # Optimal Control: Bang-Bang
+        if t < t_star:
+            alpha = 1.0
+        else:
+            alpha = 0.0
+            
+        analytical_alphas.append(alpha)
+        analytical_xs.append(curr_x)
+        
+        # Calculate payoff integral
+        analytical_payoff += (1 - alpha) * curr_x * dt
+        
+        # Dynamics update
+        dx = k * alpha * curr_x * dt
+        curr_x += dx
+        
+    return analytical_alphas, analytical_xs, analytical_payoff, t_star
 
-    if best_state is not None:
-        policy.load_state_dict(best_state)
-
-    # final eval + plot
+# --- 5. Visualization & Comparison ---
+def visualize_comparison(policy):
+    policy.eval()
+    times = np.linspace(0, T, steps)
+    
+    # 1. Get Neural Net Solution
+    nn_alphas = []
+    nn_xs = []
+    nn_payoff = 0.0
+    
+    current_x = torch.tensor([[x0]], dtype=torch.float32)
     with torch.no_grad():
-        ts, xs, as_, payoff = rollout(policy, args.x0, args.T, args.dt, args.k, device)
+        for t_val in times:
+            t_tensor = torch.tensor([[t_val]], dtype=torch.float32)
+            alpha = policy(t_tensor, current_x)
+            
+            val_alpha = alpha.item()
+            val_x = current_x.item()
+            
+            nn_alphas.append(val_alpha)
+            nn_xs.append(val_x)
+            nn_payoff += (1 - val_alpha) * val_x * dt
+            
+            dx = k * alpha * current_x * dt
+            current_x = current_x + dx
 
-    ts_np = ts.cpu().numpy()
-    xs_np = xs.cpu().numpy()
-    as_np = as_.cpu().numpy()
-    payoff_val = float(payoff.cpu().item())
+    # 2. Get Analytical Solution
+    ana_alphas, ana_xs, ana_payoff, t_star = get_analytical_solution(times)
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+    # 3. Print Comparison to Terminal
+    print("\n" + "="*50)
+    print(f"{'METRIC':<25} | {'ANALYTICAL':<15} | {'NEURAL NET':<15}")
+    print("-" * 60)
+    print(f"{'Total Payoff':<25} | {ana_payoff:<15.4f} | {nn_payoff:<15.4f}")
+    print(f"{'Switching Time (t*)':<25} | {t_star:<15.4f} | {'~'+str(round(t_star, 1))+' (Learned)'}")
+    print(f"{'Final Output x(T)':<25} | {ana_xs[-1]:<15.4f} | {nn_xs[-1]:<15.4f}")
+    print("="*50 + "\n")
 
-    axes[0].plot(ts_np, xs_np, lw=2)
-    axes[0].set_ylabel("Wealth x(t)")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].set_title(f"Learned investment strategy | payoff={payoff_val:.4f}")
+    # 4. Plot Comparison
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+    
+    # Plot 1: Control Strategy (Alpha)
+    ax1.set_title(f'Control Strategy Comparison (Switching at t*={t_star:.2f})')
+    ax1.plot(times, ana_alphas, 'k--', linewidth=2, label='Analytical Optimal (Bang-Bang)')
+    ax1.plot(times, nn_alphas, 'r-', linewidth=2, alpha=0.8, label='Neural Network Policy')
+    ax1.set_ylabel('Alpha (Reinvestment Rate)')
+    ax1.legend(loc='center right')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_ylim(-0.1, 1.2)
+    
+    # Add annotation for switching time
+    ax1.axvline(x=t_star, color='blue', linestyle=':', alpha=0.6)
+    ax1.text(t_star+0.2, 0.5, f't* = {t_star}', color='blue')
 
-    axes[1].plot(ts_np, as_np, lw=2)
-    axes[1].set_xlabel("time t")
-    axes[1].set_ylabel("a(t) (reinvest fraction)")
-    axes[1].set_ylim([-0.05, 1.05])
-    axes[1].grid(True, alpha=0.3)
-
+    # Plot 2: State Trajectory (Output x)
+    ax2.set_title('Production Output Trajectory x(t)')
+    ax2.plot(times, ana_xs, 'k--', linewidth=2, label='Analytical x(t)')
+    ax2.plot(times, nn_xs, 'b-', linewidth=2, alpha=0.8, label='Neural Network x(t)')
+    ax2.set_xlabel('Time (t)')
+    ax2.set_ylabel('Output x(t)')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
     plt.tight_layout()
-    plt.savefig(args.out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-    print(f"\nSaved plot to: {args.out}")
-    print(f"Final payoff (total profit): {payoff_val:.6f}")
-    print(f"Note: Although we did not assume bang-bang, Evans notes mention the optimal control for this model is bang-bang (with a switching time) [file:1].")
-
+    plt.savefig('question3.png', dpi=300)
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--k", type=float, default=1.0, help="growth rate k")
-    ap.add_argument("--T", type=float, default=3.0, help="horizon T")
-    ap.add_argument("--dt", type=float, default=0.01, help="time step")
-    ap.add_argument("--x0", type=float, default=1.0, help="initial wealth")
-    ap.add_argument("--iters", type=int, default=5000)
-    ap.add_argument("--lr", type=float, default=3e-3)
-    ap.add_argument("--hidden", type=int, default=128)
-    ap.add_argument("--print_every", type=int, default=200)
-    ap.add_argument("--out", type=str, default="investment_strategy.png")
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--cpu", action="store_true")
-    args = ap.parse_args()
-    train(args)
+    trained_policy = train_optimal_control()
+    visualize_comparison(trained_policy)
