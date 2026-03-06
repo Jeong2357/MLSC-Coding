@@ -54,7 +54,7 @@ $$dS = \kappa(\mu - S)\,dt + \sigma\,dW$$
 
 **Exact discretization**을 이용한 MLE:
 
-$$S_{t+1} \mid S_t \sim \mathcal{N}\!\left(\mu + (S_t - \mu)e^{-\kappa\,dt},\;\frac{\sigma^2(1 - e^{-2\kappa\,dt})}{2\kappa}\right)$$
+$$S_{t+1} \mid S_t \sim \mathcal{N}\left(\mu + (S_t - \mu)e^{-\kappa dt}, \frac{\sigma^2(1 - e^{-2\kappa dt})}{2\kappa}\right)$$
 
 Negative log-likelihood를 L-BFGS-B로 최소화하여 파라미터를 추정합니다.
 
