@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HFT Market Making via HJB — Homework 2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-chtml.min.js"></script>
+<style>
+  :root {
+    --bg:        #09090e;
+    --surface:   #111118;
+    --border:    #1e1e2e;
+    --gold:      #d4a853;
+    --gold-dim:  #8c6e33;
+    --cream:     #e8e0d0;
+    --muted:     #7a7890;
+    --accent:    #5b8dd9;
+    --accent2:   #7ecba1;
+    --danger:    #c96a5e;
+    --mono:      'DM Mono', 'Courier New', monospace;
+    --serif:     'Crimson Pro', 'Georgia', serif;
+    --display:   'DM Serif Display', 'Georgia', serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.75;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── GRID BACKGROUND ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,30,46,0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,30,46,0.4) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: relative;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+    padding: 0 max(2rem, 10vw);
+    background: linear-gradient(180deg, #0d0d16 0%, transparent 100%);
+  }
+
+  .header-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.2rem 0 0.8rem;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .course-tag {
+    background: var(--gold);
+    color: #000;
+    padding: 0.15rem 0.7rem;
+    border-radius: 2px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    font-size: 0.68rem;
+  }
+
+  .header-body {
+    padding: 3.5rem 0 3rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2rem;
+    align-items: end;
+  }
+
+  .hw-label {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--gold-dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .hw-label::before {
+    content: '';
+    display: inline-block;
+    width: 24px;
+    height: 1px;
+    background: var(--gold-dim);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    font-weight: 400;
+    line-height: 1.12;
+    color: var(--cream);
+    letter-spacing: -0.01em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .subtitle {
+    margin-top: 1rem;
+    color: var(--muted);
+    font-size: 1.05rem;
+    font-weight: 300;
+    max-width: 60ch;
+    font-style: italic;
+  }
+
+  .header-stat-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .stat-row {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .stat-row span {
+    color: var(--cream);
+    font-weight: 500;
+  }
+
+  /* ─── MAIN LAYOUT ─── */
+  main {
+    position: relative;
+    z-index: 10;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 4rem max(2rem, 5vw);
+  }
+
+  /* ─── SECTION HEADERS ─── */
+  .section {
+    margin-bottom: 4rem;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .section:nth-child(1) { animation-delay: 0.05s; }
+  .section:nth-child(2) { animation-delay: 0.1s; }
+  .section:nth-child(3) { animation-delay: 0.15s; }
+  .section:nth-child(4) { animation-delay: 0.2s; }
+  .section:nth-child(5) { animation-delay: 0.25s; }
+  .section:nth-child(6) { animation-delay: 0.3s; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 1.6rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-num {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-size: 1.65rem;
+    font-weight: 400;
+    color: var(--cream);
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--cream);
+    margin: 1.6rem 0 0.7rem;
+    letter-spacing: 0.01em;
+  }
+
+  p { margin-bottom: 1rem; color: #c8c0b8; }
+
+  /* ─── COMPARISON TABLE ─── */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin: 1.5rem 0;
+    font-family: var(--mono);
+  }
+
+  .compare-table th {
+    background: var(--surface);
+    color: var(--gold);
+    padding: 0.7rem 1rem;
+    text-align: left;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+  }
+
+  .compare-table td {
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    color: #b8b0a8;
+    vertical-align: top;
+  }
+
+  .compare-table tr:nth-child(even) td {
+    background: rgba(255,255,255,0.015);
+  }
+
+  .compare-table .highlight {
+    color: var(--accent2);
+  }
+
+  /* ─── MATH BLOCKS ─── */
+  .math-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: 1.4rem 1.8rem;
+    margin: 1.4rem 0;
+    border-radius: 0 4px 4px 0;
+    overflow-x: auto;
+  }
+
+  .math-block .math-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gold-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+  }
+
+  /* ─── PIPELINE STEPS ─── */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 1.5rem 0;
+  }
+
+  .pipe-step {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 0;
+    position: relative;
+  }
+
+  .pipe-step:not(:last-child) .pipe-left::after {
+    content: '';
+    position: absolute;
+    left: 31px;
+    top: 52px;
+    width: 1px;
+    height: calc(100% - 52px);
+    background: var(--border);
+  }
+
+  .pipe-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 1rem;
+    position: relative;
+  }
+
+  .pipe-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--gold);
+    font-weight: 500;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+
+  .pipe-body {
+    padding: 0.9rem 0 1.5rem 1rem;
+  }
+
+  .pipe-title {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--cream);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+  }
+
+  .pipe-desc {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .pipe-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 2px;
+    margin-right: 0.3rem;
+    margin-top: 0.35rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .tag-same   { background: rgba(126,203,161,0.12); color: var(--accent2); border: 1px solid rgba(126,203,161,0.25); }
+  .tag-new    { background: rgba(212,168,83,0.12);  color: var(--gold);    border: 1px solid rgba(212,168,83,0.25); }
+  .tag-theory { background: rgba(91,141,217,0.12);  color: var(--accent);  border: 1px solid rgba(91,141,217,0.25); }
+
+  /* ─── PROBLEM SET ─── */
+  .problem-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.6rem 1.8rem;
+    margin-bottom: 1.2rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .problem-card:hover {
+    border-color: var(--gold-dim);
+  }
+
+  .problem-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+  }
+
+  .prob-id {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .diff-badge {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 2px;
+    letter-spacing: 0.08em;
+  }
+
+  .diff-1 { background: rgba(126,203,161,0.15); color: var(--accent2); }
+  .diff-2 { background: rgba(91,141,217,0.15);  color: var(--accent); }
+  .diff-3 { background: rgba(212,168,83,0.15);  color: var(--gold); }
+  .diff-4 { background: rgba(201,106,94,0.15);  color: var(--danger); }
+
+  .prob-title {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--cream);
+    margin-bottom: 0.6rem;
+  }
+
+  .prob-body {
+    font-size: 0.9rem;
+    color: #9e97b0;
+    line-height: 1.7;
+    margin: 0;
+  }
+
+  .prob-hint {
+    margin-top: 0.8rem;
+    padding: 0.6rem 0.9rem;
+    background: rgba(91,141,217,0.07);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 3px 3px 0;
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+
+  /* ─── CALLOUT BOX ─── */
+  .callout {
+    background: rgba(212,168,83,0.06);
+    border: 1px solid rgba(212,168,83,0.25);
+    border-radius: 4px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+    font-size: 0.92rem;
+    color: #c8b870;
+    font-style: italic;
+  }
+
+  .callout strong {
+    font-style: normal;
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* ─── CODE SNIPPET ─── */
+  .code-block {
+    background: #06060c;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1.1rem 1.4rem;
+    margin: 1rem 0;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: #8ba0c0;
+    overflow-x: auto;
+    line-height: 1.7;
+  }
+
+  .code-block .kw   { color: #7ecba1; }
+  .code-block .cm   { color: #4a4860; }
+  .code-block .str  { color: #d4a853; }
+  .code-block .fn   { color: #5b8dd9; }
+
+  /* ─── DELIVERABLES ─── */
+  .deliverable-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin: 1rem 0;
+  }
+
+  .deliverable-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    font-size: 0.92rem;
+    color: #b0a8c0;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: rgba(255,255,255,0.015);
+  }
+
+  .deliverable-list li::before {
+    content: '→';
+    color: var(--gold);
+    font-family: var(--mono);
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    margin-top: 0.05rem;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid var(--border);
+    padding: 1.5rem max(2rem, 10vw);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .header-body { grid-template-columns: 1fr; }
+    .header-stat-block { text-align: left; }
+    .compare-table { font-size: 0.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<header>
+  <div class="header-meta">
+    <span class="course-tag">Optimal Control &amp; RL</span>
+    <span>Based on Evans, Ch. 5 — Dynamic Programming</span>
+    <span>Spring 2025</span>
+  </div>
+  <div class="header-body">
+    <div>
+      <div class="hw-label">Homework 2</div>
+      <h1>What's your <em>Spread?</em><br>HFT Market Making via HJB</h1>
+      <p class="subtitle">
+        기존 XLE 숙제(Evans Ch. 4, PMP)를 확장해 Hamilton–Jacobi–Bellman 방정식으로
+        High-Frequency Market Making의 최적 spread를 설계하고, 그 Oracle을 GRU/Mamba로 모방한다.
+      </p>
+    </div>
+    <div class="header-stat-block">
+      <div class="stat-row">Due &nbsp;<span>TBD</span></div>
+      <div class="stat-row">Evans &nbsp;<span>§5.1 – §5.3</span></div>
+      <div class="stat-row">Prior &nbsp;<span>HW1: XLE PMP</span></div>
+      <div class="stat-row">Language &nbsp;<span>Python / PyTorch</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════ MAIN ════════════════════════════════ -->
+<main>
+
+  <!-- ── SECTION 0: 동기 ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">§ 0</span>
+      <h2>동기 &amp; 두 숙제의 연결</h2>
+    </div>
+
+    <p>
+      HW1에서는 Evans Ch. 4의 <strong>Pontryagin Maximum Principle(PMP)</strong>을 이용해
+      XLE의 이론적 상한 수익(Oracle)을 구하고, GRU가 이를 모방(regret minimization)하도록 훈련했다.
+      그 핵심은 costate \(\lambda(t) = \lambda_0 + h t\)의 부호를 추적해 bang-bang control을 도출하는 것이었다.
+    </p>
+    <p>
+      이번 숙제는 동일한 문제를 <strong>Evans Ch. 5의 Dynamic Programming(HJB)</strong> 관점에서 다시 풀되,
+      시장을 <em>High-Frequency Market Making</em> 환경으로 전환한다.
+      두 관점이 어떻게 일치하는지를 Theorem 5.3(Costates and Gradients)으로 직접 확인하는 것이
+      이 숙제의 이론적 핵심이다.
+    </p>
+
+    <div class="callout">
+      <strong>핵심 메시지:</strong>
+      HW1의 costate \(\lambda(t)\)는 사실 HJB value function의 재고 기울기,
+      즉 \(\nabla_q v(q^*(t), S^*(t), t)\)와 동일하다. 
+      Evans §5.3.2는 이를 엄밀히 보장한다.
+    </div>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>항목</th>
+          <th>HW1 — XLE (Evans Ch. 4)</th>
+          <th>HW2 — HFT (Evans Ch. 5)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>이론 기반</td>
+          <td>Pontryagin Maximum Principle</td>
+          <td class="highlight">Hamilton–Jacobi–Bellman PDE</td>
+        </tr>
+        <tr>
+          <td>상태</td>
+          <td>\(x(t)\) = 재고 (continuous)</td>
+          <td class="highlight">\((q, S, t)\) = 재고 × mid-price × 시간</td>
+        </tr>
+        <tr>
+          <td>제어</td>
+          <td>Bang-bang: buy / sell</td>
+          <td class="highlight">Bid/Ask spread: \(\delta^b, \delta^a \geq 0\)</td>
+        </tr>
+        <tr>
+          <td>Oracle 계산</td>
+          <td>Binary search on \(\lambda_0\), \(O(T \log P)\)</td>
+          <td class="highlight">Backward induction on grid, \(O(T \cdot Q)\)</td>
+        </tr>
+        <tr>
+          <td>이차 패널티</td>
+          <td>Holding cost \(h|x|\)</td>
+          <td class="highlight">Inventory risk \(\tfrac{\gamma\sigma^2}{2}q^2\) ↔ Evans §5.2.3 LQR</td>
+        </tr>
+        <tr>
+          <td>데이터</td>
+          <td>XLE daily close</td>
+          <td class="highlight">Tick-level LOB (bid/ask/volume)</td>
+        </tr>
+        <tr>
+          <td>ML 모델</td>
+          <td>GRU (switching function 모방)</td>
+          <td class="highlight">GRU / Mamba (\(\delta^*\) 모방)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── SECTION 1: 이론 배경 ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">§ 1</span>
+      <h2>이론 배경 (Evans Ch. 5)</h2>
+    </div>
+
+    <h3>1.1 상태 방정식 (Evans §5.1.1)</h3>
+    <p>
+      Market maker는 매 순간 bid quote \(S - \delta^b\)와 ask quote \(S + \delta^a\)를 제시한다.
+      Poisson 체결 모형에서 재고의 dynamics는 다음과 같다.
+    </p>
+
+    <div class="math-block">
+      <div class="math-label">ODE — 재고 dynamics</div>
+      $$\dot{q}(t) = \lambda^b(\delta^b(t)) - \lambda^a(\delta^a(t)),\qquad q(0) = 0$$
+      <div style="margin-top:0.5rem; font-family: var(--mono); font-size:0.75rem; color: var(--muted);">
+        \(\lambda^b(\delta) = A e^{-k\delta}\): bid 체결 강도 (spread가 좁을수록 빈번)
+      </div>
+    </div>
+
+    <p>
+      Mid-price \(S(t)\)는 arithmetic Brownian motion을 따른다고 가정한다:
+      \(dS = \sigma\, dW\). Evans §5.1.1의 embedding 아이디어처럼,
+      시작점 \((q_0, S_0, t_0)\)를 자유롭게 놓아 value function 가족을 정의한다.
+    </p>
+
+    <h3>1.2 HJB 방정식 (Evans §5.1.2, Theorem 5.1)</h3>
+    <p>
+      Payoff는 PnL에서 재고 위험 패널티를 뺀 것:
+    </p>
+    <div class="math-block">
+      <div class="math-label">Value function</div>
+      $$v(q, S, t) = \sup_{\delta^b, \delta^a \geq 0}\;
+        \mathbb{E}\!\left[\int_t^T \left(\delta^b \lambda^b + \delta^a \lambda^a
+          - \frac{\gamma\sigma^2}{2}q^2\right)ds\;\Big|\;q(t)=q,\,S(t)=S\right]$$
+    </div>
+
+    <div class="math-block">
+      <div class="math-label">HJB PDE — Evans Theorem 5.1 형태</div>
+      $$v_t + \frac{\sigma^2}{2}v_{SS} - \frac{\gamma\sigma^2}{2}q^2
+        + \max_{\delta^b \geq 0}\!\bigl[\lambda^b(\delta^b)(\Delta^+ v + \delta^b)\bigr]
+        + \max_{\delta^a \geq 0}\!\bigl[\lambda^a(\delta^a)(\Delta^- v + \delta^a)\bigr] = 0$$
+      <div style="margin-top:0.5rem; font-family: var(--mono); font-size:0.75rem; color: var(--muted);">
+        \(\Delta^+ v = v(q+1,S,t)-v(q,S,t)\),&ensp;
+        \(\Delta^- v = v(q-1,S,t)-v(q,S,t)\)
+      </div>
+    </div>
+
+    <h3>1.3 LQR과의 대응 (Evans §5.2.3)</h3>
+    <p>
+      재고 패널티항 \(\tfrac{\gamma\sigma^2}{2}q^2\)은 Evans §5.2.3
+      <em>General Linear-Quadratic Regulator</em>의 이차 비용 \(x^T B x\)와 정확히 대응된다
+      (\(B = \gamma\sigma^2\)). 이 경우 value function의 quadratic ansatz
+      \(v(q,t) = q\, w(t) + k(t)\)가 성립하며, Evans의 Riccati equation (R)의 analogue가 나타난다.
+    </p>
+
+    <div class="math-block">
+      <div class="math-label">Optimal spread (HJB 최적화 결과)</div>
+      $$\delta^{b,*} = \frac{1}{k} - \Delta^+ v, \qquad
+        \delta^{a,*} = \frac{1}{k} - \Delta^- v$$
+      <div style="margin-top:0.5rem; font-family: var(--mono); font-size:0.75rem; color: var(--muted);">
+        spread의 절반 = \(1/k\) (유동성 항수) − \(v\)의 재고 기울기
+      </div>
+    </div>
+
+    <h3>1.4 PMP와의 연결 (Evans §5.3.2, Theorem 5.3)</h3>
+    <p>
+      Evans Theorem 5.3은 PMP의 costate \(p^*(t)\)가
+      최적 궤적을 따른 value function의 \(x\)-gradient와 일치함을 보장한다.
+      이 숙제에서 그 관계는 다음과 같이 나타난다.
+    </p>
+    <div class="math-block">
+      <div class="math-label">Evans Theorem 5.3 — 이 문제에서의 형태</div>
+      $$\lambda(t) = \nabla_q v(q^*(t), S^*(t), t)$$
+      <div style="margin-top:0.5rem; font-family: var(--mono); font-size:0.75rem; color: var(--muted);">
+        HW1의 costate \(\lambda_0 + ht\)와 HW2의 HJB gradient가 수치적으로 일치함을 확인
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 2: 파이프라인 ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">§ 2</span>
+      <h2>5단계 구현 파이프라인</h2>
+    </div>
+
+    <div class="pipeline">
+
+      <div class="pipe-step">
+        <div class="pipe-left"><div class="pipe-num">01</div></div>
+        <div class="pipe-body">
+          <div class="pipe-title">데이터 추출 &amp; LOB Physics Fit</div>
+          <p class="pipe-desc">
+            Binance / Kraken WebSocket API (또는 LOBSTER 학술 데이터셋)에서 1분봉 Level-2 호가창 데이터를 수집한다.
+            Ornstein-Uhlenbeck 프로세스로 mid-price mean-reversion 파라미터
+            \((\mu, \kappa, \sigma)\)를 추정하고, 지수형 fill-rate 모수 \((A, k)\)를 적합한다.
+            <br>
+            <span class="pipe-tag tag-new">New</span>
+            <span class="pipe-tag tag-theory">OU fit</span>
+            <span class="pipe-tag tag-theory">Evans §5.1.1</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-left"><div class="pipe-num">02</div></div>
+        <div class="pipe-body">
+          <div class="pipe-title">The Multiverse — Synthetic LOB Paths</div>
+          <p class="pipe-desc">
+            추출된 파라미터 기반으로 OU mid-price + Poisson fill 프로세스를 시뮬레이션해
+            synthetic LOB 경로를 대량 생성한다. HW1의 GBM 기반 생성과 동일한 구조를 유지한다.
+            <br>
+            <span class="pipe-tag tag-same">동일 구조 (HW1)</span>
+            <span class="pipe-tag tag-new">OU 대체</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-left"><div class="pipe-num">03</div></div>
+        <div class="pipe-body">
+          <div class="pipe-title">The Oracle — HJB Backward Induction</div>
+          <p class="pipe-desc">
+            재고 그리드 \(q \in [-Q_{\max}, Q_{\max}]\), 시간 그리드 \(t \in [0, T]\)에서
+            Evans §5.1.3 "Step 1"에 따라 HJB를 backward induction으로 풀어 \(v(q, S, t)\)를 계산한다.
+            Optimal spread \(\delta^{b,*}, \delta^{a,*}\)를 도출하고, 각 synthetic path에서 Oracle PnL을 측정한다.
+            <br>
+            <span class="pipe-tag tag-new">HJB Grid DP</span>
+            <span class="pipe-tag tag-theory">Evans §5.1.3</span>
+            <span class="pipe-tag tag-theory">Theorem 5.2</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-left"><div class="pipe-num">04</div></div>
+        <div class="pipe-body">
+          <div class="pipe-title">The Student — GRU / Mamba</div>
+          <p class="pipe-desc">
+            입력 feature: LOB imbalance, current spread, 재고 \(q\), time-to-close, mid-price return.<br>
+            출력 target: Oracle의 \(\delta^{b,*}, \delta^{a,*}\) (regression) 또는 spread 부호 (classification).<br>
+            Loss = MSE on optimal spread + inventory penalty. HW1의 GRU 구조를 재활용하되
+            출력 head를 2차원으로 확장한다.
+            <br>
+            <span class="pipe-tag tag-same">GRU 재활용</span>
+            <span class="pipe-tag tag-new">2D target</span>
+            <span class="pipe-tag tag-new">Mamba 비교</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-left"><div class="pipe-num">05</div></div>
+        <div class="pipe-body">
+          <div class="pipe-title">The Final Exam — Backtest &amp; Regret 측정</div>
+          <p class="pipe-desc">
+            실제 tick 데이터로 백테스트: Oracle PnL, NN PnL, Passive(mid-only) 세 전략을 비교.<br>
+            Regret = Oracle PnL − NN PnL. Sharpe ratio, max drawdown, fill rate, inventory 통계를 보고한다.
+            <br>
+            <span class="pipe-tag tag-same">동일 구조 (HW1)</span>
+            <span class="pipe-tag tag-new">Sharpe / Fill rate 추가</span>
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /pipeline -->
+
+    <h3>Oracle 구현 스켈레톤</h3>
+    <div class="code-block">
+<span class="kw">def</span> <span class="fn">hjb_oracle</span>(mid_prices, A, k, gamma, sigma, Q_max, dt):
+    <span class="cm">"""
+    Evans §5.1.3 Step 1: HJB backward induction
+    State: q ∈ [-Q_max, Q_max],  t ∈ [0, T]
+    Returns: v[q, t], delta_b[q, t], delta_a[q, t]
+    """</span>
+    T = len(mid_prices)
+    qs = np.arange(-Q_max, Q_max + 1)
+    <span class="cm"># Terminal condition: Evans (5.4),  v(x, T) = g(x) = 0</span>
+    v = np.zeros((len(qs), T))
+
+    <span class="kw">for</span> t <span class="kw">in</span> reversed(range(T - 1)):
+        <span class="kw">for</span> i, q <span class="kw">in</span> enumerate(qs):
+            <span class="cm"># Inventory penalty  ↔  Evans §5.2.3 LQR quadratic cost</span>
+            inv_cost = gamma * sigma**2 / 2 * q**2 * dt
+
+            <span class="cm"># Optimal spread via FOC of HJB max (Evans Theorem 5.1)</span>
+            dv_plus  = v[i+1, t+1] - v[i, t+1] <span class="kw">if</span> i < len(qs)-1 <span class="kw">else</span> <span class="fn">-np.inf</span>
+            dv_minus = v[i-1, t+1] - v[i, t+1] <span class="kw">if</span> i > 0         <span class="kw">else</span> <span class="fn">-np.inf</span>
+            db = max(1/k - dv_plus,  0)   <span class="cm"># optimal bid spread</span>
+            da = max(1/k + dv_minus, 0)   <span class="cm"># optimal ask spread</span>
+
+            <span class="cm"># Bellman update  (Evans §5.1.2 derivation)</span>
+            v[i, t] = v[i, t+1] - inv_cost \
+                + A*np.exp(-k*db)*(db + dv_plus) * dt \
+                + A*np.exp(-k*da)*(da - dv_minus) * dt
+
+    <span class="kw">return</span> v
+    </div>
+  </div>
+
+  <!-- ── SECTION 3: 구현 문제 ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">§ 3</span>
+      <h2>구현 문제 (Coding Problems)</h2>
+    </div>
+
+    <div class="problem-card">
+      <div class="prob-id">
+        CODE — 1
+        <span class="diff-badge diff-2">★★☆☆</span>
+      </div>
+      <div class="prob-title">LOB Physics Fit &amp; Synthetic Path Generator</div>
+      <p class="prob-body">
+        Binance (또는 제공된 샘플 데이터)에서 1분봉 BTC/USDT LOB 스냅샷을 수집하라.
+        mid-price에 OU 프로세스를 MLE로 적합하고, fill-rate 모수 \((A, k)\)를 spread vs. fill frequency
+        분포로 추정하라. 추정된 파라미터로 synthetic LOB path 200개를 생성하고,
+        실제 데이터와 return 분포를 비교하라.
+      </p>
+    </div>
+
+    <div class="problem-card">
+      <div class="prob-id">
+        CODE — 2
+        <span class="diff-badge diff-3">★★★☆</span>
+      </div>
+      <div class="prob-title">HJB Oracle 구현 &amp; Oracle PnL 측정</div>
+      <p class="prob-body">
+        위의 스켈레톤 코드를 완성해 HJB backward induction Oracle을 구현하라.
+        각 synthetic path에서 Oracle PnL, Sharpe ratio, max inventory를 측정하라.
+        HW1의 PMP Oracle과 동일한 path에서 PnL을 비교하고,
+        두 Oracle이 수렴하는지 확인하라 (Problem C의 수치 확인과 연동).
+      </p>
+    </div>
+
+    <div class="problem-card">
+      <div class="prob-id">
+        CODE — 3
+        <span class="diff-badge diff-3">★★★☆</span>
+      </div>
+      <div class="prob-title">GRU / Mamba 학습 &amp; 최종 백테스트</div>
+      <p class="prob-body">
+        HW1의 GRU 구조를 재활용하되 출력 head를 \((\delta^b, \delta^a)\) 2차원으로 확장하라.
+        선택적으로 Mamba encoder와 성능을 비교하라.
+        실제 tick 데이터(2024–2025)로 백테스트 후 다음을 보고하라:
+        Oracle PnL, NN PnL, Passive(spread 고정) PnL, Regret, Sharpe ratio, Fill rate.
+      </p>
+    </div>
+
+  </div>
+
+  <!-- ── SECTION 4: 제출 형식 ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">§ 4</span>
+      <h2>제출 형식 &amp; 평가 기준</h2>
+    </div>
+
+    <h3>제출물</h3>
+    <ul class="deliverable-list">
+      <li>Jupyter Notebook (.ipynb) — 재현 가능한 전체 파이프라인 (Code 1–3)</li>
+      <li>결과 요약 슬라이드 (4페이지 이내): 핵심 플롯 + PnL 테이블</li>
+      <li>핵심 플롯: Physics fit, HJB value surface \(v(q,t)\), Optimal spread heatmap, PnL 비교, Regret 비교</li>
+    </ul>
+
+    <h3>평가 기준</h3>
+    <table class="compare-table" style="margin-top:0.8rem">
+      <thead>
+        <tr><th>항목</th><th>배점</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Code 1: Physics Fit</td><td>30</td></tr>
+        <tr><td>Code 2: HJB Oracle</td><td>35</td></tr>
+        <tr><td>Code 3: ML + Backtest</td><td>35</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout" style="margin-top:1.5rem">
+      <strong>평가의 핵심:</strong>
+      단순한 구현 정확도보다, <em>Evans의 이론이 코드의 어느 줄에 대응되는가</em>를
+      명확히 설명할 수 있는지를 가장 중점적으로 본다.
+      HJB backward induction의 각 라인이 Theorem 5.1 증명의 어느 단계인지
+      주석으로 명시할 것.
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════ FOOTER ═══════════════════════════════ -->
+<footer>
+  <span>OPTIMAL CONTROL &amp; REINFORCEMENT LEARNING — HW2</span>
+  <span>Evans, L.C. — "An Introduction to Mathematical Optimal Control Theory", Ch. 5</span>
+  <span>Spring 2025</span>
+</footer>
+
+</body>
+</html>
