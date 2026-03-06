@@ -105,7 +105,7 @@ Negative log-likelihood를 L-BFGS-B로 최소화하여 파라미터를 추정합
 
 Value function:
 
-$$v_t + \frac{\sigma^2}{2}v_{SS} - \frac{\gamma\sigma^2}{2}q^2 + \max_{\delta^b \geq 0}\!\bigl[\lambda^b(\delta^b)(\Delta^+ v + \delta^b)\bigr] + \max_{\delta^a \geq 0}\!\bigl[\lambda^a(\delta^a)(\Delta^- v + \delta^a)\bigr] = 0$$
+$$v(q, S, t) = \sup_{\delta^b, \delta^a \geq 0} \mathbb{E}\left[\int_t^T \left(\delta^b \lambda^b + \delta^a \lambda^a - \frac{\gamma\sigma^2}{2}q^2\right)ds\right]$$
 
 HJB PDE:
 
