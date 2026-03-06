@@ -40,7 +40,7 @@ We generated 7,200 LOB snapshots (5 trading days × 1,440 min/day), then fitted 
 
 ![Plot 1: Physics Fit](plot1_physics_fit.png)
 
-- **(a) Mid-Price & OU Mean**: Five days of BTC mid-price fluctuating around the estimated $\hat{\mu} = \$64{,}999.81$ (red dashed). The mean-reverting behavior is visually apparent — the price repeatedly returns to the long-run mean rather than drifting away.
+- **(a) Mid-Price & OU Mean**: Five days of BTC mid-price fluctuating around the estimated $\hat{\mu} =$ \$64,999.81 (red dashed). The mean-reverting behavior is visually apparent — the price repeatedly returns to the long-run mean rather than drifting away.
 - **(b) Return Distribution**: The empirical 1-minute return histogram matches the OU-implied Gaussian with $\hat{\sigma} = 12.03$. The close overlay confirms that the OU model adequately captures the return dynamics at this frequency.
 - **(c) Fill Rate vs Spread**: Log-scale plot showing the exponential decay $\lambda(\delta) = A e^{-k\delta}$. The red fit line tracks the blue empirical points and approximately parallels the green true curve. This validates the Poisson fill model: wider quotes mean exponentially fewer fills.
 - **(d) Autocorrelation**: The empirical ACF of mid-prices decays as $e^{-\hat{\kappa}\tau}$, matching the OU theoretical autocorrelation. This confirms the mean-reversion timescale is correctly captured ($1/\hat{\kappa} \approx 6.9$ minutes).
