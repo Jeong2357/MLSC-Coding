@@ -269,7 +269,7 @@ Mamba가 GRU보다 약간 낮은 validation loss를 달성했습니다.
 
 Evans Theorem 5.3에 따르면:
 
-$$\lambda(t) = \nabla_q v(q^*(t), S^*(t), t)$$
+$$\lambda(t) = \nabla_q v(q^\ast(t), S^\ast(t), t)$$
 
 즉, PMP의 costate λ(t)는 HJB value function의 재고 기울기와 동일합니다.
 
