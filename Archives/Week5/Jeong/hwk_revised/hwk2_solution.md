@@ -117,7 +117,7 @@ $$v_t + \frac{\sigma^2}{2}v_{SS} - \frac{\gamma\sigma^2}{2}q^2 + \max_{\delta^b 
 
 **FOC (First-Order Condition):**
 
-$$\delta^{b,*} = \frac{1}{k} - \Delta^+ v, \qquad \delta^{a,*} = \frac{1}{k} - \Delta^- v$$
+$$\delta^{b,\ast} = \frac{1}{k} - \Delta^+ v, \qquad \delta^{a,\ast} = \frac{1}{k} - \Delta^- v$$
 
 **Bellman update:**
 
