@@ -50,7 +50,7 @@
 
 Mid-price를 Ornstein-Uhlenbeck 프로세스로 모델링합니다:
 
-$$dS = \kappa(\mu - S)\,dt + \sigma\,dW$$
+$$dS = \kappa(\mu - S)dt + \sigma dW$$
 
 **Exact discretization**을 이용한 MLE:
 
